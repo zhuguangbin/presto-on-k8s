@@ -1,0 +1,40 @@
+lowercaseOutputName: true
+rules:
+  - pattern: "com.facebook.presto.failureDetector<name=HeartbeatFailureDetector><>(.+): (.*)"
+    name: "presto_failure_detector_$1"    
+  - pattern: "com.facebook.presto.execution<name=QueryExecution><>(.*): (.*)"
+    name: "presto_queryexecution_$1"
+  - pattern: "com.facebook.presto.execution<name=QueryManager><>(.*): (.*)"
+    name: "presto_querymanager_$1"
+  - pattern: "com.facebook.presto.execution<name=RemoteTaskFactory><>(.*): (.*)"
+    name: "presto_remote_taskfactory_$1"
+  - pattern: "com.facebook.presto.execution<name=TaskManager><>(.*): (.*)"
+    name: "presto_taskmanager_$1"
+  - pattern: "com.facebook.presto.execution.executor<name=TaskExecutor><>(.+Splits): (.*)"
+    name: "presto_taskexecutor_$1"
+  - pattern: "com.facebook.presto.execution.resourceGroups<name=InternalResourceGroupManager><>QueriesQueuedOnInternal: (.*)"
+    name: "presto_resourcegroups_queries_queued_on_internal"
+    type: "GAUGE"
+  - pattern: "com.facebook.presto.memory<name=ClusterMemoryManager><>(.+): (.*)"
+    name: "presto_cluster_memorymanager_$1"
+  - pattern: "com.facebook.presto.memory<type=ClusterMemoryPool, name=general><>(.+): (.*)"
+    name: "presto_clustermemorypool_general_$1"
+  - pattern: "com.facebook.presto.memory<type=MemoryPool,name=general><>(.+): (.*)"
+    name: "presto_memorypool_general_$1"
+  - pattern: "com.facebook.presto.server<name=(AsyncHttpExecutionMBean|ExchangeExecutionMBean|StatementHttpExecutionMBean)><>(.+): (.*)"
+    name: "presto_server_$1_$2"
+  - pattern: "com.facebook.presto.server.protocol<name=StatementResource><>(.+): (.*)"
+    name: "presto_protocal_statement_resource_$1"
+    
+  - pattern: "com.facebook.presto.hive<type=NamenodeStats,name=hive><>ListLocatedStatus.Time.OneMinute.P9(0|9): (.*)"
+    name: "presto_hive_listlocatedstatus_one_minute_P9$1"
+    type: GAUGE
+  - pattern: "com.facebook.presto.hive<type=NamenodeStats,name=hive><>ListLocatedStatus.TotalFailures.OneMinute.Count: (.*)"
+    name: "presto_hive_listlocatedstatus_total_failures_one_minute"
+    type: GAUGE
+  - pattern: "com.facebook.presto.execution.scheduler<name=SplitSchedulerStats><>GetSplitTime.OneMinute.P9(0|9): (.*)"
+    name: "presto_scheduler_split_time_one_minute_P9$1"
+    type: GAUGE
+  - pattern: "com.facebook.presto.execution.scheduler<name=SplitSchedulerStats><>WaitingForSource.OneMinute.Count: (.*)"
+    name: "presto_scheduler_waiting_source_one_minute"
+    type: GAUGE

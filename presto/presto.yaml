@@ -1,0 +1,200 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: presto
+spec:
+  ports:
+  - port: 8080
+  selector:
+    app: presto-coordinator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: presto-coordinator
+spec:
+  selector:
+    matchLabels:
+      app: presto-coordinator
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: "10570"
+        prometheus.io/scrape: "true"
+      labels:
+        app: presto-coordinator
+    spec:
+      containers:
+      - name: presto-server
+        image: ${IMAGE}
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: hadoop-conf-vol
+          mountPath: /etc/hadoop/conf
+        - name: presto-conf-vol
+          mountPath: /opt/presto-server/etc
+        - name: presto-conf-coordinator-vol
+          mountPath: /tmp/coordinator
+        # command: ['/opt/autoconfig_and_launch.sh']
+        command:
+          - sh
+          - -c
+          - 'rm -rf /opt/presto-server/etc/* && cp -rpL /tmp/coordinator/* /opt/presto-server/etc && ls -l /opt/presto-server/etc && /opt/autoconfig_and_launch.sh'
+        resources:
+          requests:
+            memory: "${COORDINATOR_MEMORY}"
+            cpu: ${COORDINATOR_CORES}
+        imagePullPolicy: IfNotPresent
+      volumes:
+        - name: presto-conf-vol
+          emptyDir: {}
+        - name: hadoop-conf-vol
+          configMap:
+            name: hadoop-conf
+            items:
+            - key: core-site.xml
+              path: core-site.xml
+            - key: hdfs-site.xml
+              path: hdfs-site.xml
+        - name: presto-conf-coordinator-vol
+          configMap:
+            name: presto-conf-coordinator
+            items:
+            - key: config.properties
+              path: config.properties
+            - key: jvm.config
+              path: jvm.config
+            - key: node.properties.template
+              path: node.properties.template
+            - key: hive.properties
+              path: catalog/hive.properties
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: presto-worker
+spec:
+#  serviceName: presto-worker
+  replicas: ${NUM_WORKERS}
+  selector:
+    matchLabels:
+      app: presto-worker
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: "10570"
+        prometheus.io/scrape: "true"
+      labels:
+        app: presto-worker
+    spec:
+      containers:
+      - name: presto-server
+        image: ${IMAGE}
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: hadoop-conf-vol
+          mountPath: /etc/hadoop/conf
+        - name: presto-conf-vol
+          mountPath: /opt/presto-server/etc
+        - name: presto-conf-worker-vol
+          mountPath: /tmp/worker
+        # command: ['/opt/autoconfig_and_launch.sh']
+        command:
+          - sh
+          - -c
+          - 'rm -rf /opt/presto-server/etc/* && cp -rpL /tmp/worker/* /opt/presto-server/etc && ls -l /opt/presto-server/etc && /opt/autoconfig_and_launch.sh'
+        resources:
+          requests:
+            memory: "${WORKER_MEMORY}"
+            cpu: ${WORKER_CORES}
+        imagePullPolicy: IfNotPresent
+      volumes:
+        - name: presto-conf-vol
+          emptyDir: {}
+        - name: hadoop-conf-vol
+          configMap:
+            name: hadoop-conf
+            items:
+            - key: core-site.xml
+              path: core-site.xml
+            - key: hdfs-site.xml
+              path: hdfs-site.xml
+        - name: presto-conf-worker-vol
+          configMap:
+            name: presto-conf-worker
+            items:
+            - key: config.properties
+              path: config.properties
+            - key: jvm.config
+              path: jvm.config
+            - key: node.properties.template
+              path: node.properties.template
+            - key: hive.properties
+              path: catalog/hive.properties
+---
+kind: Ingress
+apiVersion: extensions/v1beta1
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx-ultron
+    nginx.ingress.kubernetes.io/enable-access-log: "true"
+    nginx.ingress.kubernetes.io/client-body-buffer-size: 20M
+    nginx.ingress.kubernetes.io/proxy-body-size: 20m
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 512k
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+  name: presto-ui
+spec:
+  rules:
+    - host: presto.${NAMESPACE}.shbt.k8s.ultron.ads.qihoo.net
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: presto
+              servicePort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: presto-cli
+spec:
+  containers:
+    - name: presto-cli
+      image: ${IMAGE}
+      command: ["tail", "-f", "/dev/null"]
+      imagePullPolicy: IfNotPresent
+  restartPolicy: Always
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: presto-worker-hpa
+spec:
+  maxReplicas: ${MAX_WORKERS}
+  minReplicas: ${NUM_WORKERS}
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: presto-worker
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Pods
+      pods:
+        metric:
+          name: presto_taskexecutor_waitingsplits
+        target:
+         type: Value
+         value: 1
+         averageValue: 1000m
